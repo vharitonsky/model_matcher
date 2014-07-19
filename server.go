@@ -1,23 +1,43 @@
 package main
 
 import (
+	"flag"
+	"fmt"
 	"github.com/vharitonsky/goutil"
+	"io"
 	"log"
-    "fmt"
+	"net/http"
 	"strings"
 	"sync"
 )
 
 var (
 	modelsMap = make(map[string][]Model)
+	port      = flag.String("port", "8080", "port to run the server on")
 )
 
 type Model struct {
 	id, name string
 }
 
-func match(name string, callback_url string) string {
-	return "ok"
+type Product struct {
+	id, category_id, name string
+}
+
+type RequestData struct {
+	callback_url            string
+	callback_model_id_param string
+	products                []Product
+}
+
+func makeHandler(fn http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		fn(w, r)
+	}
+}
+
+func MatcherServer(w http.ResponseWriter, req *http.Request) {
+	io.WriteString(w, "hello")
 }
 
 func init() {
@@ -27,7 +47,7 @@ func init() {
 	for line := range goutil.ReadLines("data/cats.txt") {
 		modelsMap[line] = make([]Model, 0)
 		categories_count += 1
-    	wg.Add(1)
+		wg.Add(1)
 		go func() {
 			for model_line := range goutil.ReadLines("data/models/m_" + line + ".txt") {
 				parts := strings.Split(model_line, "|")
@@ -43,5 +63,7 @@ func init() {
 }
 
 func main() {
-
+	flag.Parse()
+	log.Print("Running model matcher server on port " + *port)
+	log.Fatal(http.ListenAndServe(":"+*port, makeHandler(MatcherServer)))
 }
