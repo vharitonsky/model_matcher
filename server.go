@@ -1,10 +1,12 @@
 package main
 
 import (
+	"encoding/json"
 	"flag"
 	"fmt"
 	"github.com/vharitonsky/goutil"
 	"io"
+	"io/ioutil"
 	"log"
 	"net/http"
 	"strings"
@@ -24,7 +26,7 @@ type Product struct {
 	id, category_id, name string
 }
 
-type RequestData struct {
+type MatchData struct {
 	callback_url            string
 	callback_model_id_param string
 	products                []Product
@@ -37,6 +39,13 @@ func makeHandler(fn http.HandlerFunc) http.HandlerFunc {
 }
 
 func MatcherServer(w http.ResponseWriter, req *http.Request) {
+	var match_data MatchData
+	data, err := ioutil.ReadAll(req.Body)
+	log.Print("Received:" + string(data))
+	if err != nil {
+		log.Fatal(err)
+	}
+	json.Unmarshal(data, &match_data)
 	io.WriteString(w, "hello")
 }
 
