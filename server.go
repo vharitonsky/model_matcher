@@ -46,6 +46,19 @@ func MatcherServer(w http.ResponseWriter, req *http.Request) {
 		log.Fatal(err)
 	}
 	json.Unmarshal(data, &match_data)
+	var wg sync.WaitGroup
+	wg.Add(len(match_data.products))
+	for _, product := range match_data.products {
+		go func() {
+			for _, model := range modelsMap[product.category_id] {
+				if model.name == product.name {
+					fmt.Println("Product matched" + product.name)
+					break
+				}
+			}
+			wg.Wait()
+		}()
+	}
 	io.WriteString(w, "hello")
 }
 
