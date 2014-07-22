@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -23,7 +24,7 @@ type Model struct {
 }
 
 type Product struct {
-	id, category_id, name string
+	id, category_id, model_id, name string
 }
 
 type MatchData struct {
@@ -38,6 +39,26 @@ func makeHandler(fn http.HandlerFunc) http.HandlerFunc {
 	}
 }
 
+func matchProducts(products *[]Product) (matched_products []Product) {
+	var wg sync.WaitGroup
+	wg.Add(len(*products))
+	for _, product := range *products {
+		go func() {
+			for _, model := range modelsMap[product.category_id] {
+				if model.name == product.name {
+					log.Print("Product", product.name, "vs", model.name)
+					product.model_id = model.id
+					matched_products = append(matched_products, product)
+					break
+				}
+			}
+			wg.Done()
+		}()
+	}
+	wg.Wait()
+	return matched_products
+}
+
 func MatcherServer(w http.ResponseWriter, req *http.Request) {
 	var match_data MatchData
 	data, err := ioutil.ReadAll(req.Body)
@@ -45,21 +66,19 @@ func MatcherServer(w http.ResponseWriter, req *http.Request) {
 	if err != nil {
 		log.Fatal(err)
 	}
-	json.Unmarshal(data, &match_data)
-	var wg sync.WaitGroup
-	wg.Add(len(match_data.products))
-	for _, product := range match_data.products {
-		go func() {
-			for _, model := range modelsMap[product.category_id] {
-				if model.name == product.name {
-					fmt.Println("Product matched" + product.name)
-					break
-				}
-			}
-			wg.Wait()
-		}()
-	}
-	io.WriteString(w, "hello")
+	go func() {
+		json.Unmarshal(data, &match_data)
+		matched_products := matchProducts(&match_data.products)
+		if len(matched_products) > 0 {
+            marshalled, err := json.Marshal(matched_products)
+            if err != nil{
+                log.Fatal(err)
+            }
+			http.Post(match_data.callback_url, "application/json", bytes.NewReader(marshalled))
+		}
+	}()
+
+	io.WriteString(w, "ok")
 }
 
 func init() {
