@@ -6,6 +6,7 @@ import (
 	"flag"
 	"fmt"
 	"github.com/vharitonsky/goutil"
+	"github.com/vharitonsky/model_matcher/lib"
 	"io"
 	"io/ioutil"
 	"log"
@@ -15,13 +16,9 @@ import (
 )
 
 var (
-	modelsMap = make(map[string][]Model)
+	modelsMap = make(map[string][]lib.Model)
 	port      = flag.String("port", "8080", "port to run the server on")
 )
-
-type Model struct {
-	id, name string
-}
 
 type Product struct {
 	id, category_id, model_id, name string
@@ -45,9 +42,9 @@ func matchProducts(products *[]Product) (matched_products []Product) {
 	for _, product := range *products {
 		go func() {
 			for _, model := range modelsMap[product.category_id] {
-				if model.name == product.name {
-					log.Print("Product", product.name, "vs", model.name)
-					product.model_id = model.id
+				if model.Name == product.name {
+					log.Print("Product", product.name, "vs", model.Name)
+					product.model_id = model.Id
 					matched_products = append(matched_products, product)
 					break
 				}
@@ -70,10 +67,10 @@ func MatcherServer(w http.ResponseWriter, req *http.Request) {
 		json.Unmarshal(data, &match_data)
 		matched_products := matchProducts(&match_data.products)
 		if len(matched_products) > 0 {
-            marshalled, err := json.Marshal(matched_products)
-            if err != nil{
-                log.Fatal(err)
-            }
+			marshalled, err := json.Marshal(matched_products)
+			if err != nil {
+				log.Fatal(err)
+			}
 			http.Post(match_data.callback_url, "application/json", bytes.NewReader(marshalled))
 		}
 	}()
@@ -86,13 +83,13 @@ func init() {
 	var wg sync.WaitGroup
 	models_count, categories_count := 0, 0
 	for line := range goutil.ReadLines("data/cats.txt") {
-		modelsMap[line] = make([]Model, 0)
+		modelsMap[line] = make([]lib.Model, 0)
 		categories_count += 1
 		wg.Add(1)
 		go func() {
 			for model_line := range goutil.ReadLines("data/models/m_" + line + ".txt") {
 				parts := strings.Split(model_line, "|")
-				m := Model{id: parts[0], name: parts[1]}
+				m := lib.Model{Id: parts[0], Name: parts[1]}
 				modelsMap[line] = append(modelsMap[line], m)
 				models_count += 1
 			}

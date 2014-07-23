@@ -1,9 +1,10 @@
 package lib
 
 type Model struct{
-    id, name string
+    Id, Name string
 }
 
+
 func NewModel(id string, name string) *Model{
-    return &Model{id:id, name:name}
+    return &Model{Id:id, Name:name}
 }
