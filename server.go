@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"container/list"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -16,7 +17,7 @@ import (
 )
 
 var (
-	modelsMap = make(map[string][]lib.Model)
+	modelsMap = make(map[string]*list.List)
 	port      = flag.String("port", "8080", "port to run the server on")
 )
 
@@ -36,16 +37,20 @@ func makeHandler(fn http.HandlerFunc) http.HandlerFunc {
 	}
 }
 
-func matchProducts(products *[]Product) (matched_products []Product) {
+func matchProducts(products *[]Product) (matched_products *list.List) {
 	var wg sync.WaitGroup
+	matched_products = list.New()
 	wg.Add(len(*products))
+	var model lib.Model
 	for _, product := range *products {
 		go func() {
-			for _, model := range modelsMap[product.category_id] {
+			l := modelsMap[product.category_id]
+			for e := l.Front(); e != nil; e = e.Next() {
+				model = e.Value.(lib.Model)
 				if model.Name == product.name {
 					log.Print("Product", product.name, "vs", model.Name)
 					product.model_id = model.Id
-					matched_products = append(matched_products, product)
+					matched_products.PushBack(product)
 					break
 				}
 			}
@@ -53,7 +58,7 @@ func matchProducts(products *[]Product) (matched_products []Product) {
 		}()
 	}
 	wg.Wait()
-	return matched_products
+	return
 }
 
 func MatcherServer(w http.ResponseWriter, req *http.Request) {
@@ -66,7 +71,7 @@ func MatcherServer(w http.ResponseWriter, req *http.Request) {
 	go func() {
 		json.Unmarshal(data, &match_data)
 		matched_products := matchProducts(&match_data.products)
-		if len(matched_products) > 0 {
+		if matched_products.Len() > 0 {
 			marshalled, err := json.Marshal(matched_products)
 			if err != nil {
 				log.Fatal(err)
@@ -83,14 +88,14 @@ func init() {
 	var wg sync.WaitGroup
 	models_count, categories_count := 0, 0
 	for line := range goutil.ReadLines("data/cats.txt") {
-		modelsMap[line] = make([]lib.Model, 0)
+		modelsMap[line] = list.New()
 		categories_count += 1
 		wg.Add(1)
 		go func() {
 			for model_line := range goutil.ReadLines("data/models/m_" + line + ".txt") {
 				parts := strings.Split(model_line, "|")
 				m := lib.Model{Id: parts[0], Name: parts[1]}
-				modelsMap[line] = append(modelsMap[line], m)
+				modelsMap[line].PushBack(m)
 				models_count += 1
 			}
 			wg.Done()
