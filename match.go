@@ -10,8 +10,8 @@ type Model struct {
 	name string
 }
 
-func match_category(category_id string) chan string {
-	ch := make(chan string)
+func match_category(category_id string) chan interface{} {
+	ch := make(chan interface{})
 	go func() {
 		count := 0
 		fmt.Println("Going to work on category_id:" + category_id)
@@ -37,7 +37,7 @@ func match_category(category_id string) chan string {
 
 func main() {
 	count := 0
-	channels := []chan string{}
+	channels := make([]chan interface{}, 0)
 	for line := range goutil.ReadLines("data/cats.txt") {
 		channels = append(channels, match_category(line))
 	}
