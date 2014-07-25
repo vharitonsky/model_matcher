@@ -43,12 +43,13 @@ func matchProducts(products *[]Product) (matched_products *list.List) {
 	wg.Add(len(*products))
 	var model lib.Model
 	for _, product := range *products {
+		product_name := lib.SplitName(lib.CleanName(product.name))
 		go func() {
 			l := modelsMap[product.category_id]
 			for e := l.Front(); e != nil; e = e.Next() {
 				model = e.Value.(lib.Model)
-				if model.Name == product.name {
-					log.Print("Product", product.name, "vs", model.Name)
+				if lib.MatchNames(product_name, model.Name) {
+					log.Print("Product", product_name, "vs", model.Name)
 					product.model_id = model.Id
 					matched_products.PushBack(product)
 					break
@@ -94,7 +95,7 @@ func init() {
 		go func() {
 			for model_line := range goutil.ReadLines("data/models/m_" + line + ".txt") {
 				parts := strings.Split(model_line, "|")
-				m := lib.Model{Id: parts[0], Name: parts[1]}
+				m := lib.Model{Id: parts[0], Name: lib.SplitName(parts[1])}
 				modelsMap[line].PushBack(m)
 				models_count += 1
 			}

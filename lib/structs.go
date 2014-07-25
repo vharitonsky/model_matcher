@@ -1,10 +1,10 @@
 package lib
 
-type Model struct{
-    Id, Name string
+type Model struct {
+	Id   string
+	Name map[string]bool
 }
 
-
-func NewModel(id string, name string) *Model{
-    return &Model{Id:id, Name:name}
+func NewModel(id string, name map[string]bool) *Model {
+	return &Model{Id: id, Name: name}
 }
