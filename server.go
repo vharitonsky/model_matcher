@@ -42,15 +42,15 @@ func MatchProducts(products *[]Product) (matched_products *list.List) {
 	matched_products = list.New()
 	wg.Add(len(*products))
 	var model lib.Model
+	log.Print(*products)
 	for _, product := range *products {
 		product_name := lib.SplitName(lib.CleanName(product.name))
-		go func() {
+		go func(product Product) {
 			l, found := modelsMap[product.category_id]
 			if found {
 				for e := l.Front(); e != nil; e = e.Next() {
 					model = e.Value.(lib.Model)
 					if lib.MatchNames(product_name, model.Name) {
-						log.Print("Product", product_name, "vs", model.Name)
 						product.model_id = model.Id
 						matched_products.PushBack(product)
 						break
@@ -58,7 +58,7 @@ func MatchProducts(products *[]Product) (matched_products *list.List) {
 				}
 			}
 			wg.Done()
-		}()
+		}(product)
 	}
 	wg.Wait()
 	return
@@ -94,15 +94,15 @@ func init() {
 		modelsMap[line] = list.New()
 		categories_count += 1
 		wg.Add(1)
-		go func() {
-			for model_line := range goutil.ReadLines("data/models/m_" + line + ".txt") {
+		go func(cat_id string) {
+			for model_line := range goutil.ReadLines("data/models/m_" + cat_id + ".txt") {
 				parts := strings.Split(model_line, "|")
 				m := lib.Model{Id: parts[0], Name: lib.SplitName(parts[1])}
-				modelsMap[line].PushBack(m)
+				modelsMap[cat_id].PushBack(m)
 				models_count += 1
 			}
 			wg.Done()
-		}()
+		}(line)
 	}
 	wg.Wait()
 	log.Print(fmt.Sprintf("Matcher initialized with %d models from %d categories", models_count, categories_count))
