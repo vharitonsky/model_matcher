@@ -37,7 +37,7 @@ func makeHandler(fn http.HandlerFunc) http.HandlerFunc {
 	}
 }
 
-func matchProducts(products *[]Product) (matched_products *list.List) {
+func MatchProducts(products *[]Product) (matched_products *list.List) {
 	var wg sync.WaitGroup
 	matched_products = list.New()
 	wg.Add(len(*products))
@@ -45,14 +45,16 @@ func matchProducts(products *[]Product) (matched_products *list.List) {
 	for _, product := range *products {
 		product_name := lib.SplitName(lib.CleanName(product.name))
 		go func() {
-			l := modelsMap[product.category_id]
-			for e := l.Front(); e != nil; e = e.Next() {
-				model = e.Value.(lib.Model)
-				if lib.MatchNames(product_name, model.Name) {
-					log.Print("Product", product_name, "vs", model.Name)
-					product.model_id = model.Id
-					matched_products.PushBack(product)
-					break
+			l, found := modelsMap[product.category_id]
+			if found {
+				for e := l.Front(); e != nil; e = e.Next() {
+					model = e.Value.(lib.Model)
+					if lib.MatchNames(product_name, model.Name) {
+						log.Print("Product", product_name, "vs", model.Name)
+						product.model_id = model.Id
+						matched_products.PushBack(product)
+						break
+					}
 				}
 			}
 			wg.Done()
@@ -71,7 +73,7 @@ func MatcherServer(w http.ResponseWriter, req *http.Request) {
 	}
 	go func() {
 		json.Unmarshal(data, &match_data)
-		matched_products := matchProducts(&match_data.products)
+		matched_products := MatchProducts(&match_data.products)
 		if matched_products.Len() > 0 {
 			marshalled, err := json.Marshal(matched_products)
 			if err != nil {
