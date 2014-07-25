@@ -42,7 +42,6 @@ func MatchProducts(products *[]Product) (matched_products *list.List) {
 	matched_products = list.New()
 	wg.Add(len(*products))
 	var model lib.Model
-	log.Print(*products)
 	for _, product := range *products {
 		product_name := lib.SplitName(lib.CleanName(product.name))
 		go func(product Product) {
