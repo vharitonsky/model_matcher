@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"container/list"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"github.com/vharitonsky/goutil"
@@ -63,25 +64,36 @@ func MatchProducts(products *[]Product) (matched_products *list.List) {
 	return
 }
 
-func MatcherServer(w http.ResponseWriter, req *http.Request) {
+func ProcessData(data []byte) (res []byte, callback_url string, err error) {
 	var match_data MatchData
+	json.Unmarshal(data, &match_data)
+	matched_products := MatchProducts(&match_data.products)
+	if matched_products.Len() > 0 {
+		res, err = json.Marshal(matched_products)
+		if err != nil {
+			return []byte{}, "", err
+		} else {
+			return res, match_data.callback_url, nil
+		}
+	} else {
+		return []byte{}, "", errors.New("No products matched")
+	}
+}
+
+func MatcherServer(w http.ResponseWriter, req *http.Request) {
 	data, err := ioutil.ReadAll(req.Body)
 	log.Print("Received:" + string(data))
 	if err != nil {
 		log.Fatal(err)
 	}
 	go func() {
-		json.Unmarshal(data, &match_data)
-		matched_products := MatchProducts(&match_data.products)
-		if matched_products.Len() > 0 {
-			marshalled, err := json.Marshal(matched_products)
-			if err != nil {
-				log.Fatal(err)
-			}
-			http.Post(match_data.callback_url, "application/json", bytes.NewReader(marshalled))
+		res, callback_url, err := ProcessData(data)
+		if err != nil {
+			log.Fatal(err)
+			http.Post(callback_url, "application/json", bytes.NewReader(res))
 		}
-	}()
 
+	}()
 	io.WriteString(w, "ok")
 }
 
