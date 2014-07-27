@@ -41,12 +41,11 @@ func makeHandler(fn http.HandlerFunc) http.HandlerFunc {
 	}
 }
 
-func MatchProducts(products *[]Product) (matched_products *list.List) {
-	var wg sync.WaitGroup
-	matched_products = list.New()
-	wg.Add(len(*products))
+func MatchProducts(products []Product) (matched_products []Product) {
+	matched_products = make([]Product, 0)
 	var model lib.Model
-	for _, product := range *products {
+	ch := make(chan interface{})
+	for _, product := range products {
 		product_name := lib.SplitName(lib.CleanName(product.Name))
 		go func(product Product) {
 			l, found := modelsMap[product.Category_id]
@@ -55,15 +54,21 @@ func MatchProducts(products *[]Product) (matched_products *list.List) {
 					model = e.Value.(lib.Model)
 					if lib.MatchNames(product_name, model.Name) {
 						product.Model_id = model.Id
-						matched_products.PushBack(product)
-						break
+						ch <- product
+						return
 					}
 				}
 			}
-			wg.Done()
+			ch <- nil
 		}(product)
 	}
-	wg.Wait()
+	for i := 0; i < len(products); i++ {
+		matched_product := <-ch
+		if matched_product != nil {
+			matched_products = append(matched_products, matched_product.(Product))
+		}
+	}
+	close(ch)
 	return
 }
 
@@ -73,9 +78,8 @@ func ProcessData(data []byte) (res []byte, callback_url string, err error) {
 	if err != nil {
 		return []byte{}, "", err
 	}
-	matched_products := MatchProducts(&match_data.Products)
-	log.Print(match_data)
-	if matched_products.Len() > 0 {
+	matched_products := MatchProducts(match_data.Products)
+	if len(matched_products) > 0 {
 		res, err = json.Marshal(matched_products)
 		if err != nil {
 			return []byte{}, "", err
