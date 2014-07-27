@@ -23,10 +23,10 @@ var (
 )
 
 type Product struct {
-	Id string `json:"id"`
-    Category_id string `json:"category_id"`
-    Model_id string `json:"model_id"`
-    Name string `json:"name"`
+	Id          string `json:"id"`
+	Category_id string `json:"category_id"`
+	Model_id    string `json:"model_id"`
+	Name        string `json:"name"`
 }
 
 type MatchData struct {
@@ -70,11 +70,11 @@ func MatchProducts(products *[]Product) (matched_products *list.List) {
 func ProcessData(data []byte) (res []byte, callback_url string, err error) {
 	var match_data MatchData
 	err = json.Unmarshal(data, &match_data)
-    if err != nil{
-        return []byte{}, "", err
-    }
+	if err != nil {
+		return []byte{}, "", err
+	}
 	matched_products := MatchProducts(&match_data.Products)
-    log.Print(match_data)
+	log.Print(match_data)
 	if matched_products.Len() > 0 {
 		res, err = json.Marshal(matched_products)
 		if err != nil {

@@ -24,10 +24,10 @@ func TestMatchProducts(t *testing.T) {
 	return
 }
 
-func TestProcessData(t *testing.T){
-    data := []byte(`
+func TestProcessData(t *testing.T) {
+	data := []byte(`
         {"callback_url": "1234", "products": [{"Id": "10", "Name": "5abc ahead", "Category_id": "180510"}]}
     `)
-    ProcessData(data)
-    return
+	ProcessData(data)
+	return
 }
