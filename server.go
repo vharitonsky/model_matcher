@@ -23,13 +23,16 @@ var (
 )
 
 type Product struct {
-	id, category_id, model_id, name string
+	Id string `json:"id"`
+    Category_id string `json:"category_id"`
+    Model_id string `json:"model_id"`
+    Name string `json:"name"`
 }
 
 type MatchData struct {
-	callback_url            string
-	callback_model_id_param string
-	products                []Product
+	Callback_url            string
+	Callback_model_id_param string
+	Products                []Product
 }
 
 func makeHandler(fn http.HandlerFunc) http.HandlerFunc {
@@ -44,14 +47,14 @@ func MatchProducts(products *[]Product) (matched_products *list.List) {
 	wg.Add(len(*products))
 	var model lib.Model
 	for _, product := range *products {
-		product_name := lib.SplitName(lib.CleanName(product.name))
+		product_name := lib.SplitName(lib.CleanName(product.Name))
 		go func(product Product) {
-			l, found := modelsMap[product.category_id]
+			l, found := modelsMap[product.Category_id]
 			if found {
 				for e := l.Front(); e != nil; e = e.Next() {
 					model = e.Value.(lib.Model)
 					if lib.MatchNames(product_name, model.Name) {
-						product.model_id = model.Id
+						product.Model_id = model.Id
 						matched_products.PushBack(product)
 						break
 					}
@@ -66,14 +69,18 @@ func MatchProducts(products *[]Product) (matched_products *list.List) {
 
 func ProcessData(data []byte) (res []byte, callback_url string, err error) {
 	var match_data MatchData
-	json.Unmarshal(data, &match_data)
-	matched_products := MatchProducts(&match_data.products)
+	err = json.Unmarshal(data, &match_data)
+    if err != nil{
+        return []byte{}, "", err
+    }
+	matched_products := MatchProducts(&match_data.Products)
+    log.Print(match_data)
 	if matched_products.Len() > 0 {
 		res, err = json.Marshal(matched_products)
 		if err != nil {
 			return []byte{}, "", err
 		} else {
-			return res, match_data.callback_url, nil
+			return res, match_data.Callback_url, nil
 		}
 	} else {
 		return []byte{}, "", errors.New("No products matched")
