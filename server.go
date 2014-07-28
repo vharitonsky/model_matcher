@@ -15,6 +15,7 @@ import (
 	"net/http"
 	"strings"
 	"sync"
+	"time"
 )
 
 var (
@@ -112,6 +113,7 @@ func init() {
 	log.Print("Initializing models")
 	var wg sync.WaitGroup
 	models_count, categories_count := 0, 0
+	start := time.Now()
 	for line := range goutil.ReadLines("data/cats.txt") {
 		modelsMap[line] = list.New()
 		categories_count += 1
@@ -127,7 +129,8 @@ func init() {
 		}(line)
 	}
 	wg.Wait()
-	log.Print(fmt.Sprintf("Matcher initialized with %d models from %d categories", models_count, categories_count))
+	elapsed := time.Since(start)
+	log.Print(fmt.Sprintf("Matcher initialized with %d models from %d categories in %s", models_count, categories_count, elapsed))
 }
 
 func main() {
