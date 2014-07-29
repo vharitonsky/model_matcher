@@ -1,25 +1,24 @@
 package main
 
 import (
+	"bufio"
 	"bytes"
-	"container/list"
 	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
-	"github.com/vharitonsky/goutil"
 	"github.com/vharitonsky/model_matcher/lib"
 	"io"
 	"io/ioutil"
 	"log"
 	"net/http"
+	"os"
 	"strings"
-	"sync"
 	"time"
 )
 
 var (
-	modelsMap = make(map[string]*list.List)
+	modelsMap = make(map[string][]lib.Model)
 	port      = flag.String("port", "8080", "port to run the server on")
 )
 
@@ -44,15 +43,13 @@ func makeHandler(fn http.HandlerFunc) http.HandlerFunc {
 
 func MatchProducts(products []Product) (matched_products []Product) {
 	matched_products = make([]Product, 0)
-	var model lib.Model
 	ch := make(chan interface{})
 	for _, product := range products {
 		product_name := lib.SplitName(lib.CleanName(product.Name))
 		go func(product Product) {
-			l, found := modelsMap[product.Category_id]
+			models, found := modelsMap[product.Category_id]
 			if found {
-				for e := l.Front(); e != nil; e = e.Next() {
-					model = e.Value.(lib.Model)
+				for _, model := range models {
 					if lib.MatchNames(product_name, model.Name) {
 						product.Model_id = model.Id
 						ch <- product
@@ -111,24 +108,49 @@ func MatcherServer(w http.ResponseWriter, req *http.Request) {
 
 func init() {
 	log.Print("Initializing models")
-	var wg sync.WaitGroup
 	models_count, categories_count := 0, 0
 	start := time.Now()
-	for line := range goutil.ReadLines("data/cats.txt") {
-		modelsMap[line] = list.New()
-		categories_count += 1
-		wg.Add(1)
-		go func(cat_id string) {
-			for model_line := range goutil.ReadLines("data/models/m_" + cat_id + ".txt") {
-				parts := strings.Split(model_line, "|")
-				m := lib.Model{Id: parts[0], Name: lib.SplitName(parts[1])}
-				modelsMap[cat_id].PushBack(m)
-				models_count += 1
-			}
-			wg.Done()
-		}(line)
+	cat_file, err := os.Open("data/cats.txt")
+	defer cat_file.Close()
+	if err != nil {
+		log.Fatal(err)
 	}
-	wg.Wait()
+	model_file_reader := bufio.NewReader(cat_file)
+	for {
+		cat_line, err := model_file_reader.ReadBytes('\n')
+
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			log.Fatal(err)
+		}
+		cat_id := string(cat_line[:len(cat_line)-1])
+		models := make([]lib.Model, 0)
+		categories_count += 1
+
+		file, err := os.Open("data/models/m_" + cat_id + ".txt")
+		defer file.Close()
+		if err != nil {
+			log.Fatal(err)
+		}
+		reader := bufio.NewReader(file)
+		for {
+			model_line, err := reader.ReadBytes('\n')
+			if err == io.EOF {
+				break
+			}
+			if err != nil {
+				log.Fatal(err)
+			}
+			parts := strings.Split(string(model_line[:len(model_line)-1]), "|")
+			m := lib.Model{Id: parts[0], Name: lib.SplitName(parts[1])}
+			models = append(models, m)
+		}
+
+		models_count += len(models)
+		modelsMap[cat_id] = models
+	}
 	elapsed := time.Since(start)
 	log.Print(fmt.Sprintf("Matcher initialized with %d models from %d categories in %s", models_count, categories_count, elapsed))
 }
