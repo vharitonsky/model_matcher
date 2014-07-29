@@ -118,12 +118,12 @@ func init() {
 	model_file_reader := bufio.NewReader(cat_file)
 	for {
 		cat_line, err := model_file_reader.ReadBytes('\n')
-
-		if err == io.EOF {
-			break
-		}
 		if err != nil {
-			log.Fatal(err)
+			if err == io.EOF {
+				break
+			} else {
+				log.Fatal(err)
+			}
 		}
 		cat_id := string(cat_line[:len(cat_line)-1])
 		models := make([]lib.Model, 0)
@@ -137,17 +137,17 @@ func init() {
 		reader := bufio.NewReader(file)
 		for {
 			model_line, err := reader.ReadBytes('\n')
-			if err == io.EOF {
-				break
-			}
 			if err != nil {
-				log.Fatal(err)
+				if err == io.EOF {
+					break
+				} else {
+					log.Fatal(err)
+				}
 			}
 			parts := strings.Split(string(model_line[:len(model_line)-1]), "|")
 			m := lib.Model{Id: parts[0], Name: lib.SplitName(parts[1])}
 			models = append(models, m)
 		}
-
 		models_count += len(models)
 		modelsMap[cat_id] = models
 	}
