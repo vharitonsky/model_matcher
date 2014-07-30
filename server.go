@@ -13,13 +13,16 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"os/signal"
 	"strings"
+	"syscall"
 	"time"
 )
 
 var (
 	modelsMap = make(map[string][]lib.Model)
 	port      = flag.String("port", "8080", "port to run the server on")
+	sigc      = make(chan os.Signal, 1)
 )
 
 type Product struct {
@@ -106,7 +109,7 @@ func MatcherServer(w http.ResponseWriter, req *http.Request) {
 	io.WriteString(w, "ok")
 }
 
-func init() {
+func InitModels() {
 	log.Print("Initializing models")
 	models_count, categories_count := 0, 0
 	start := time.Now()
@@ -155,8 +158,19 @@ func init() {
 	log.Print(fmt.Sprintf("Matcher initialized with %d models from %d categories in %s", models_count, categories_count, elapsed))
 }
 
+func init() {
+	InitModels()
+}
+
 func main() {
 	flag.Parse()
+	signal.Notify(sigc,
+		syscall.SIGHUP,
+	)
+	go func() {
+		_ = <-sigc
+		InitModels()
+	}()
 	log.Print("Running model matcher server on port " + *port)
 	log.Fatal(http.ListenAndServe(":"+*port, makeHandler(MatcherServer)))
 }
