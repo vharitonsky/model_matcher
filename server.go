@@ -7,6 +7,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"github.com/fzzy/radix/redis"
 	"github.com/vharitonsky/model_matcher/lib"
 	"io"
 	"io/ioutil"
@@ -23,6 +24,7 @@ var (
 	modelsMap = make(map[string][]lib.Model)
 	port      = flag.String("port", "8080", "port to run the server on")
 	sigc      = make(chan os.Signal, 1)
+	version   = ""
 )
 
 type Product struct {
@@ -42,6 +44,28 @@ func makeHandler(fn http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		fn(w, r)
 	}
+}
+
+func CheckVersion() {
+	c, err := redis.DialTimeout("tcp", "127.0.0.1:6379", time.Duration(10)*time.Second)
+	if err != nil {
+		log.Fatal(err)
+		return
+	}
+	defer c.Close()
+	r := c.Cmd("select", 0)
+	current_version, err := r.Str()
+	current_version, err = c.Cmd("get", "_model_matcher_version").Str()
+	if err != nil {
+		log.Print(err)
+		return
+	}
+	log.Print("Current version is ", current_version)
+	if current_version != version {
+		InitModels()
+		version = current_version
+	}
+
 }
 
 func MatchProducts(products []Product) (matched_products []Product) {
@@ -160,6 +184,14 @@ func InitModels() {
 
 func init() {
 	InitModels()
+	ticker := time.NewTicker(time.Duration(1) * time.Minute)
+	go func() {
+		for {
+			_ = <-ticker.C
+			CheckVersion()
+		}
+
+	}()
 }
 
 func main() {
