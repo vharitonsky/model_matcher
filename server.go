@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bufio"
 	"bytes"
 	"encoding/json"
 	"errors"
@@ -21,10 +20,11 @@ import (
 )
 
 var (
-	modelsMap = make(map[string][]lib.Model)
-	port      = flag.String("port", "8080", "port to run the server on")
-	sigc      = make(chan os.Signal, 1)
-	version   = ""
+	redis_conn *redis.Client
+	modelsMap  = make(map[string][]lib.Model)
+	port       = flag.String("port", "8080", "port to run the server on")
+	sigc       = make(chan os.Signal, 1)
+	version    = ""
 )
 
 type Product struct {
@@ -47,18 +47,10 @@ func makeHandler(fn http.HandlerFunc) http.HandlerFunc {
 }
 
 func CheckVersion() {
-	c, err := redis.DialTimeout("tcp", "127.0.0.1:6379", time.Duration(10)*time.Second)
-	if err != nil {
-		log.Fatal(err)
-		return
-	}
-	defer c.Close()
-	r := c.Cmd("select", 0)
-	current_version, err := r.Str()
-	current_version, err = c.Cmd("get", "_model_matcher_version").Str()
-	if err != nil {
-		log.Print(err)
-		return
+	current_version, _ := redis_conn.Cmd("get", "_model_matcher_version").Str()
+	if current_version == "" {
+		log.Print("Current server version is empty, exiting...")
+		os.Exit(1)
 	}
 	log.Print("Current version is ", current_version)
 	if current_version != version {
@@ -137,41 +129,13 @@ func InitModels() {
 	log.Print("Initializing models")
 	models_count, categories_count := 0, 0
 	start := time.Now()
-	cat_file, err := os.Open("data/cats.txt")
-	defer cat_file.Close()
-	if err != nil {
-		log.Fatal(err)
-	}
-	model_file_reader := bufio.NewReader(cat_file)
-	for {
-		cat_line, err := model_file_reader.ReadBytes('\n')
-		if err != nil {
-			if err == io.EOF {
-				break
-			} else {
-				log.Fatal(err)
-			}
-		}
-		cat_id := string(cat_line[:len(cat_line)-1])
+	cats, _ := redis_conn.Cmd("lrange", "_model_matcher_cats", 0, -1).List()
+	for _, cat_id := range cats {
+		model_lines, _ := redis_conn.Cmd("lrange", "_model_matcher_cat_"+cat_id, 0, -1).List()
 		models := make([]lib.Model, 0)
 		categories_count += 1
-
-		file, err := os.Open("data/models/m_" + cat_id + ".txt")
-		defer file.Close()
-		if err != nil {
-			log.Fatal(err)
-		}
-		reader := bufio.NewReader(file)
-		for {
-			model_line, err := reader.ReadBytes('\n')
-			if err != nil {
-				if err == io.EOF {
-					break
-				} else {
-					log.Fatal(err)
-				}
-			}
-			parts := strings.Split(string(model_line[:len(model_line)-1]), "|")
+		for _, model_line := range model_lines {
+			parts := strings.Split(string(model_line), "|")
 			m := lib.Model{Id: parts[0], Name: lib.SplitName(parts[1])}
 			models = append(models, m)
 		}
@@ -182,18 +146,6 @@ func InitModels() {
 	log.Print(fmt.Sprintf("Matcher initialized with %d models from %d categories in %s", models_count, categories_count, elapsed))
 }
 
-func init() {
-	InitModels()
-	ticker := time.NewTicker(time.Duration(1) * time.Minute)
-	go func() {
-		for {
-			_ = <-ticker.C
-			CheckVersion()
-		}
-
-	}()
-}
-
 func main() {
 	flag.Parse()
 	signal.Notify(sigc,
@@ -202,6 +154,22 @@ func main() {
 	go func() {
 		_ = <-sigc
 		InitModels()
+	}()
+	var err error
+	redis_conn, err = redis.DialTimeout("tcp", "127.0.0.1:6379", time.Duration(10)*time.Second)
+	if err != nil {
+		log.Fatal(err)
+		return
+	}
+	defer redis_conn.Close()
+	CheckVersion()
+	ticker := time.NewTicker(time.Duration(10) * time.Minute)
+	go func() {
+		for {
+			_ = <-ticker.C
+			CheckVersion()
+		}
+
 	}()
 	log.Print("Running model matcher server on port " + *port)
 	log.Fatal(http.ListenAndServe(":"+*port, makeHandler(MatcherServer)))
