@@ -1,0 +1,3 @@
+{
+	"SqlUrl": "postgres://postgres:postgres@localhost:5432/model_database?sslmode=disable"
+}

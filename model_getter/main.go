@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"encoding/json"
 	"fmt"
 	"github.com/fzzy/radix/redis"
 	"io"
@@ -9,7 +10,27 @@ import (
 	"os"
 	"strconv"
 	"time"
+	_ "github.com/lib/pq"
+	"database/sql"
 )
+
+type Configuration struct {
+	SqlUrl string
+}
+
+var (
+	configuration = Configuration{}
+)
+
+func init() {
+	file, _ := os.Open("conf.json")
+	decoder := json.NewDecoder(file)
+	err := decoder.Decode(&configuration)
+	if err != nil {
+		log.Fatal(err)
+	}
+	log.Print("Configured with ", configuration.SqlUrl)
+}
 
 func main() {
 	c, err := redis.DialTimeout("tcp", "127.0.0.1:6379", time.Duration(10)*time.Second)
@@ -22,6 +43,10 @@ func main() {
 	log.Print("Initializing models")
 	models_count, categories_count := 0, 0
 	start := time.Now()
+	_, err = sql.Open("postgres", configuration.SqlUrl)
+	if err != nil {
+		log.Fatal(err)
+	}
 	cat_file, err := os.Open("../data/cats.txt")
 	defer cat_file.Close()
 	if err != nil {
