@@ -1,21 +1,21 @@
 package main
 
 import (
-	"bufio"
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"github.com/fzzy/radix/redis"
-	"io"
+	_ "github.com/lib/pq"
 	"log"
 	"os"
 	"strconv"
 	"time"
-	_ "github.com/lib/pq"
-	"database/sql"
 )
 
 type Configuration struct {
-	SqlUrl string
+	SqlUrl          string
+	CatIdQuery      string
+	ModelLinesQuery string
 }
 
 var (
@@ -41,55 +41,37 @@ func main() {
 	defer c.Close()
 	c.Cmd("select", 0)
 	log.Print("Initializing models")
-	models_count, categories_count := 0, 0
+	models_count := 0
 	start := time.Now()
-	_, err = sql.Open("postgres", configuration.SqlUrl)
-	if err != nil {
-		log.Fatal(err)
-	}
-	cat_file, err := os.Open("../data/cats.txt")
-	defer cat_file.Close()
+	db, err := sql.Open("postgres", configuration.SqlUrl)
 	if err != nil {
 		log.Fatal(err)
 	}
 	cats := make([]string, 0)
-	model_file_reader := bufio.NewReader(cat_file)
-	for {
-		cat_line, err := model_file_reader.ReadBytes('\n')
-		if err != nil {
-			if err == io.EOF {
-				break
-			} else {
-				log.Fatal(err)
-			}
-		}
-		cat_id := string(cat_line[:len(cat_line)-1])
+	rows, err := db.Query(configuration.CatIdQuery, 0)
+	for rows.Next() {
+		var cat_id string
+		rows.Scan(&cat_id)
+		cats = append(cats, cat_id)
+	}
+	defer rows.Close()
+	for _, cat_id := range cats {
 		models := make([]string, 0)
-		categories_count += 1
-
-		file, err := os.Open("../data/models/m_" + cat_id + ".txt")
-		defer file.Close()
+		rows, err := db.Query(configuration.ModelLinesQuery, 0, cat_id)
+		defer rows.Close()
 		if err != nil {
 			log.Fatal(err)
 		}
-		reader := bufio.NewReader(file)
-		for {
-			model_line, err := reader.ReadBytes('\n')
-			if err != nil {
-				if err == io.EOF {
-					break
-				} else {
-					log.Fatal(err)
-				}
-			}
-			models = append(models, string(model_line[:len(model_line)-1]))
+		for rows.Next() {
+			var model_line string
+			rows.Scan(&model_line)
+			models = append(models, model_line)
 		}
 		models_count += len(models)
 		c.Append("del", "_model_matcher_cat_"+cat_id)
 		c.Append("lpush", "_model_matcher_cat_"+cat_id, models)
 		c.GetReply()
 		c.GetReply()
-		cats = append(cats, cat_id)
 	}
 	c.Append("del", "_model_matcher_cats")
 	c.Append("lpush", "_model_matcher_cats", cats)
@@ -101,5 +83,5 @@ func main() {
 	c.Cmd("set", "_model_matcher_version", next_version)
 	log.Print("Current version is ", next_version)
 	elapsed := time.Since(start)
-	log.Print(fmt.Sprintf("Matcher initialized with %d models from %d categories in %s", models_count, categories_count, elapsed))
+	log.Print(fmt.Sprintf("Matcher initialized with %d models from %d categories in %s", models_count, len(cats), elapsed))
 }
