@@ -152,8 +152,10 @@ func main() {
 		syscall.SIGHUP,
 	)
 	go func() {
-		_ = <-sigc
-		InitModels()
+		for {
+			_ = <-sigc
+			InitModels()
+		}
 	}()
 	var err error
 	redis_conn, err = redis.DialTimeout("tcp", "127.0.0.1:6379", time.Duration(10)*time.Second)
