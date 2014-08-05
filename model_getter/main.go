@@ -16,6 +16,7 @@ type Configuration struct {
 	SqlUrl          string
 	CatIdQuery      string
 	ModelLinesQuery string
+	RedisAddr       string
 }
 
 var (
@@ -33,7 +34,7 @@ func init() {
 }
 
 func main() {
-	c, err := redis.DialTimeout("tcp", "127.0.0.1:6379", time.Duration(10)*time.Second)
+	c, err := redis.DialTimeout("tcp", configuration.RedisAddr, time.Duration(10)*time.Second)
 	if err != nil {
 		log.Fatal(err)
 		return

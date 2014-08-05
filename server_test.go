@@ -1,14 +1,15 @@
 package main
 
 import (
+	"github.com/vharitonsky/model_matcher/lib"
 	"testing"
 )
 
 func TestMatchProducts(t *testing.T) {
-	products := []Product{
-		Product{Id: "10", Name: "5abc ahead", Category_id: "180510"},
-		Product{Id: "11", Name: "No category", Category_id: "1234"},
-		Product{Id: "12", Name: "No match", Category_id: "12345"},
+	products := []lib.Product{
+		lib.Product{Id: "10", Name: "5abc ahead", Category_id: "180510"},
+		lib.Product{Id: "11", Name: "No category", Category_id: "1234"},
+		lib.Product{Id: "12", Name: "No match", Category_id: "12345"},
 	}
 	matched_products := MatchProducts(products)
 	if len(matched_products) != 1 {

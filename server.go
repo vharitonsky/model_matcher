@@ -19,26 +19,18 @@ import (
 	"time"
 )
 
+type Configuration struct {
+	RedisAddr string
+}
+
 var (
-	redis_conn *redis.Client
-	modelsMap  = make(map[string][]lib.Model)
-	port       = flag.String("port", "8080", "port to run the server on")
-	sigc       = make(chan os.Signal, 1)
-	version    = ""
+	redis_conn    *redis.Client
+	configuration = Configuration{}
+	modelsMap     = make(map[string][]lib.Model)
+	port          = flag.String("port", "8080", "port to run the server on")
+	sigc          = make(chan os.Signal, 1)
+	version       = ""
 )
-
-type Product struct {
-	Id          string `json:"id"`
-	Category_id string `json:"category_id"`
-	Model_id    string `json:"model_id"`
-	Name        string `json:"name"`
-}
-
-type MatchData struct {
-	Callback_url            string
-	Callback_model_id_param string
-	Products                []Product
-}
 
 func makeHandler(fn http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -60,12 +52,12 @@ func CheckVersion() {
 
 }
 
-func MatchProducts(products []Product) (matched_products []Product) {
-	matched_products = make([]Product, 0)
+func MatchProducts(products []lib.Product) (matched_products []lib.Product) {
+	matched_products = make([]lib.Product, 0)
 	ch := make(chan interface{})
 	for _, product := range products {
 		product_name := lib.SplitName(lib.CleanName(product.Name))
-		go func(product Product) {
+		go func(product lib.Product) {
 			models, found := modelsMap[product.Category_id]
 			if found {
 				for _, model := range models {
@@ -82,7 +74,7 @@ func MatchProducts(products []Product) (matched_products []Product) {
 	for i := 0; i < len(products); i++ {
 		matched_product := <-ch
 		if matched_product != nil {
-			matched_products = append(matched_products, matched_product.(Product))
+			matched_products = append(matched_products, matched_product.(lib.Product))
 		}
 	}
 	close(ch)
@@ -90,7 +82,7 @@ func MatchProducts(products []Product) (matched_products []Product) {
 }
 
 func ProcessData(data []byte) (res []byte, callback_url string, err error) {
-	var match_data MatchData
+	var match_data lib.MatchData
 	err = json.Unmarshal(data, &match_data)
 	if err != nil {
 		return []byte{}, "", err
@@ -146,6 +138,9 @@ func InitModels() {
 	log.Print(fmt.Sprintf("Matcher initialized with %d models from %d categories in %s", models_count, categories_count, elapsed))
 }
 
+func init() {
+
+}
 func main() {
 	flag.Parse()
 	signal.Notify(sigc,
@@ -158,7 +153,15 @@ func main() {
 		}
 	}()
 	var err error
-	redis_conn, err = redis.DialTimeout("tcp", "127.0.0.1:6379", time.Duration(10)*time.Second)
+	file, _ := os.Open("conf.json")
+	defer file.Close()
+	decoder := json.NewDecoder(file)
+	err = decoder.Decode(&configuration)
+	if err != nil {
+		log.Fatal(err)
+	}
+	log.Print("Configured with ", configuration.RedisAddr)
+	redis_conn, err = redis.DialTimeout("tcp", configuration.RedisAddr, time.Duration(10)*time.Second)
 	if err != nil {
 		log.Fatal(err)
 		return
