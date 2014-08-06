@@ -1,3 +1,6 @@
 {
-	"SqlUrl": "postgres://postgres:postgres@localhost:5432/model_database?sslmode=disable"
+	"SqlUrl": "postgres://postgres:postgres@localhost:5432/model_database?sslmode=disable",
+	"RedisAddr": "127.0.0.1:6379",
+	"CatIdQuery": "select distinct c_id from models where status = $1",
+	"ModelLinesQuery": "select concat(id, '|', name) from models where status = $1 and c_id = $2"
 }
