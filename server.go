@@ -138,9 +138,6 @@ func InitModels() {
 	log.Print(fmt.Sprintf("Matcher initialized with %d models from %d categories in %s", models_count, categories_count, elapsed))
 }
 
-func init() {
-
-}
 func main() {
 	flag.Parse()
 	signal.Notify(sigc,
