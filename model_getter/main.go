@@ -1,3 +1,4 @@
+//This package downloads models from database and uploads them into redis
 package main
 
 import (
@@ -58,15 +59,26 @@ func main() {
 	defer rows.Close()
 	for _, cat_id := range cats {
 		models := make([]string, 0)
-		rows, err := db.Query(configuration.ModelLinesQuery, 0, cat_id)
-		defer rows.Close()
-		if err != nil {
-			log.Fatal(err)
-		}
-		for rows.Next() {
-			var model_line string
-			rows.Scan(&model_line)
-			models = append(models, model_line)
+		last_id := 0
+		limit := 1000
+		for {
+			processed := 0
+			rows, err := db.Query(configuration.ModelLinesQuery, 0, cat_id, last_id, limit)
+			defer rows.Close()
+			if err != nil {
+				log.Fatal(err)
+			}
+			for rows.Next() {
+				var model_line string
+				rows.Scan(&last_id, &model_line)
+				models = append(models, model_line)
+				processed++
+			}
+			log.Print(fmt.Sprintf("Queried %d models", processed))
+			if processed < limit {
+				break
+			}
+
 		}
 		models_count += len(models)
 		c.Append("del", "_model_matcher_cat_"+cat_id)
