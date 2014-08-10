@@ -5,7 +5,13 @@ import (
 	"testing"
 )
 
+func init() {
+	Configure()
+	InitModels()
+}
+
 func TestMatchProducts(t *testing.T) {
+
 	products := []lib.Product{
 		lib.Product{Id: "10", Name: "5abc ahead", Category_id: "180510"},
 		lib.Product{Id: "11", Name: "No category", Category_id: "1234"},
@@ -14,13 +20,16 @@ func TestMatchProducts(t *testing.T) {
 	matched_products := MatchProducts(products)
 	if len(matched_products) != 1 {
 		t.Error("At least one product should match")
+		t.FailNow()
 	}
 	matched_product := matched_products[0]
 	if matched_product.Id != "10" {
 		t.Error("First product should have id 10, got", matched_product.Id)
+		t.FailNow()
 	}
 	if matched_product.Model_id != "703387" {
 		t.Error("First product should have a model_id 703387 got", matched_product.Model_id)
+		t.FailNow()
 	}
 	return
 }
@@ -32,6 +41,7 @@ func TestProcessData(t *testing.T) {
 	res, _, err := ProcessData(data)
 	if err != nil {
 		t.Error(err)
+		t.FailNow()
 	}
 	t.Log("Result", string(res))
 	return

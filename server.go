@@ -24,7 +24,6 @@ type Configuration struct {
 }
 
 var (
-	redis_conn    *redis.Client
 	configuration = Configuration{}
 	modelsMap     = make(map[string][]lib.Model)
 	port          = flag.String("port", "8080", "port to run the server on")
@@ -38,7 +37,25 @@ func makeHandler(fn http.HandlerFunc) http.HandlerFunc {
 	}
 }
 
+func Configure() {
+	var err error
+	file, _ := os.Open("conf.json")
+	defer file.Close()
+	decoder := json.NewDecoder(file)
+	err = decoder.Decode(&configuration)
+	if err != nil {
+		log.Fatal(err)
+	}
+	log.Print("Configured with ", configuration.RedisAddr)
+}
+
 func CheckVersion() {
+	redis_conn, err := redis.DialTimeout("tcp", configuration.RedisAddr, time.Duration(10)*time.Second)
+	if err != nil {
+		log.Fatal(err)
+		return
+	}
+	defer redis_conn.Close()
 	current_version, _ := redis_conn.Cmd("get", "_model_matcher_version").Str()
 	if current_version == "" {
 		log.Print("Current server version is empty, exiting...")
@@ -118,6 +135,12 @@ func MatcherServer(w http.ResponseWriter, req *http.Request) {
 }
 
 func InitModels() {
+	redis_conn, err := redis.DialTimeout("tcp", configuration.RedisAddr, time.Duration(10)*time.Second)
+	if err != nil {
+		log.Fatal(err)
+		return
+	}
+	defer redis_conn.Close()
 	log.Print("Initializing models")
 	models_count, categories_count := 0, 0
 	start := time.Now()
@@ -149,21 +172,7 @@ func main() {
 			InitModels()
 		}
 	}()
-	var err error
-	file, _ := os.Open("conf.json")
-	defer file.Close()
-	decoder := json.NewDecoder(file)
-	err = decoder.Decode(&configuration)
-	if err != nil {
-		log.Fatal(err)
-	}
-	log.Print("Configured with ", configuration.RedisAddr)
-	redis_conn, err = redis.DialTimeout("tcp", configuration.RedisAddr, time.Duration(10)*time.Second)
-	if err != nil {
-		log.Fatal(err)
-		return
-	}
-	defer redis_conn.Close()
+	Configure()
 	CheckVersion()
 	ticker := time.NewTicker(time.Duration(10) * time.Minute)
 	go func() {
